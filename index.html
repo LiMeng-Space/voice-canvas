@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Canvas - AI 语音绘图工具</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-label="语音绘图工作区">
+        <div class="top-bar">
+          <div>
+            <p class="eyebrow">Voice Canvas</p>
+            <h1>AI 语音绘图工具</h1>
+          </div>
+          <div class="mic-panel" aria-live="polite">
+            <button id="micButton" class="mic-button" type="button" title="启动或暂停语音识别">
+              <span class="mic-dot" aria-hidden="true"></span>
+              <span id="micLabel">启动麦克风</span>
+            </button>
+            <span id="supportStatus" class="support-status">检测语音能力中...</span>
+          </div>
+        </div>
+
+        <div class="canvas-frame">
+          <canvas id="drawingCanvas" width="1280" height="720" aria-label="绘图画布"></canvas>
+        </div>
+      </section>
+
+      <aside class="side-panel" aria-label="语音指令状态">
+        <section class="status-section">
+          <p class="panel-label">实时识别</p>
+          <div id="transcript" class="transcript">等待语音输入</div>
+        </section>
+
+        <section class="status-section">
+          <p class="panel-label">当前设置</p>
+          <dl class="state-grid">
+            <div>
+              <dt>颜色</dt>
+              <dd><span id="colorSwatch" class="swatch"></span><span id="currentColor">墨黑</span></dd>
+            </div>
+            <div>
+              <dt>线宽</dt>
+              <dd id="currentLineWidth">6 px</dd>
+            </div>
+            <div>
+              <dt>模式</dt>
+              <dd id="currentMode">填充</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="status-section">
+          <p class="panel-label">可说指令</p>
+          <ul class="command-list">
+            <li>画一个红色太阳在左上角</li>
+            <li>再画三朵蓝色云在上方</li>
+            <li>把背景改成浅蓝色</li>
+            <li>写文字 夏日实训 在中间</li>
+            <li>撤销，重做，清空画布</li>
+            <li>导出作品</li>
+          </ul>
+        </section>
+
+        <section class="status-section log-section">
+          <p class="panel-label">执行记录</p>
+          <ol id="commandLog" class="command-log"></ol>
+        </section>
+      </aside>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

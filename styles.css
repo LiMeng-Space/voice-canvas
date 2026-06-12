@@ -1,0 +1,295 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f2ea;
+  --panel: #fffaf0;
+  --ink: #222326;
+  --muted: #68655f;
+  --line: #d7cfc1;
+  --canvas: #fffdfa;
+  --teal: #167d7f;
+  --coral: #d65a4a;
+  --gold: #c8932b;
+  --green: #3d7a54;
+  --shadow: 0 16px 36px rgba(35, 31, 24, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family:
+    "Inter", "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+}
+
+button,
+canvas {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+  padding: 18px;
+}
+
+.workspace,
+.side-panel {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--teal);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.55rem;
+  line-height: 1.15;
+}
+
+.mic-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mic-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  cursor: pointer;
+}
+
+.mic-button.listening {
+  border-color: var(--coral);
+  background: var(--coral);
+}
+
+.mic-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.65);
+}
+
+.mic-button.listening .mic-dot {
+  animation: pulse 1.2s infinite;
+}
+
+.support-status {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.canvas-frame {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  min-height: 0;
+}
+
+#drawingCanvas {
+  width: 100%;
+  max-width: 1280px;
+  aspect-ratio: 16 / 9;
+  display: block;
+  border: 1px solid var(--line);
+  background: var(--canvas);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.status-section {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.status-section:last-child {
+  border-bottom: 0;
+}
+
+.panel-label {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.transcript {
+  min-height: 92px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: #fffdfa;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.state-grid {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.state-grid div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.state-grid dt {
+  color: var(--muted);
+}
+
+.state-grid dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  background: #222326;
+}
+
+.command-list,
+.command-log {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.7;
+}
+
+.command-list {
+  color: var(--ink);
+}
+
+.log-section {
+  flex: 1;
+  min-height: 180px;
+  overflow: auto;
+}
+
+.command-log {
+  color: var(--muted);
+}
+
+.command-log li {
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.command-log .ok {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.command-log .warn {
+  color: var(--coral);
+  font-weight: 700;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .side-panel {
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .top-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mic-panel {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .mic-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .canvas-frame,
+  .status-section {
+    padding: 12px;
+  }
+}
