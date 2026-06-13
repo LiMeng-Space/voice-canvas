@@ -9,6 +9,10 @@ const colorSwatch = document.querySelector("#colorSwatch");
 const currentColor = document.querySelector("#currentColor");
 const currentLineWidth = document.querySelector("#currentLineWidth");
 const currentMode = document.querySelector("#currentMode");
+const historyCount = document.querySelector("#historyCount");
+const undoState = document.querySelector("#undoState");
+const redoState = document.querySelector("#redoState");
+const latestResult = document.querySelector("#latestResult");
 
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
@@ -95,6 +99,7 @@ function saveSnapshot(label, clearRedo = true) {
   if (clearRedo) {
     state.redoStack = [];
   }
+  updateStatePanel();
 }
 
 function restoreSnapshot(snapshot) {
@@ -106,6 +111,8 @@ function logCommand(message, type = "ok") {
   const status = type === "ok" ? "完成" : "提示";
   item.innerHTML = `<span class="${type}">${status}</span> ${escapeHtml(message)}`;
   commandLog.prepend(item);
+  latestResult.textContent = `${status}：${message}`;
+  latestResult.className = `latest-result ${type}`;
   while (commandLog.children.length > 18) {
     commandLog.removeChild(commandLog.lastElementChild);
   }
@@ -138,6 +145,9 @@ function updateStatePanel() {
   currentColor.textContent = state.colorName;
   currentLineWidth.textContent = `${state.lineWidth} px`;
   currentMode.textContent = state.mode === "fill" ? "填充" : "描边";
+  historyCount.textContent = `${Math.max(state.history.length - 1, 0)} 步`;
+  undoState.textContent = state.history.length > 1 ? "可撤销" : "无";
+  redoState.textContent = state.redoStack.length > 0 ? "可重做" : "无";
 }
 
 function setupSpeechRecognition() {
@@ -357,6 +367,7 @@ function undo() {
   const current = state.history.pop();
   state.redoStack.push(current);
   restoreSnapshot(state.history[state.history.length - 1]);
+  updateStatePanel();
   logCommand("撤销上一项绘图");
   return true;
 }
@@ -369,6 +380,7 @@ function redo() {
   }
   state.history.push(next);
   restoreSnapshot(next);
+  updateStatePanel();
   logCommand("恢复上一项绘图");
   return true;
 }

@@ -207,6 +207,28 @@ h1 {
   background: #222326;
 }
 
+.latest-result {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: #fffdfa;
+  color: var(--muted);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.latest-result.ok {
+  color: var(--green);
+  border-color: rgba(61, 122, 84, 0.35);
+}
+
+.latest-result.warn {
+  color: var(--coral);
+  border-color: rgba(214, 90, 74, 0.35);
+}
+
 .command-list,
 .command-log {
   margin: 0;
