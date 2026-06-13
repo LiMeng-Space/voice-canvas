@@ -364,7 +364,7 @@ function isEditRecentPersonCommand(command) {
 function isDeleteRecentElementCommand(command) {
   return (
     /(删除|删掉|去掉|移除|擦掉)/.test(command) &&
-    /(最近|刚才|上一个|最后|元素|图形|画的|人物|文字)/.test(command)
+    (/(最近|刚才|上一个|最后|元素|图形|画的|人物|文字)/.test(command) || Boolean(findShape(command)))
   );
 }
 
@@ -376,7 +376,7 @@ function executeCommand(command) {
   }
 
   if (isDeleteRecentElementCommand(command)) {
-    return deleteRecentElement();
+    return deleteRecentElement(command);
   }
 
   if (isBadmintonSceneCommand(command)) {
@@ -390,7 +390,7 @@ function executeCommand(command) {
   }
 
   if (/帮助|说明|指令/.test(command)) {
-    logCommand("支持形状、颜色、位置、数量、背景、文字、演示、修改最近人物、删除最近元素、撤销、重做和导出指令");
+    logCommand("支持形状、颜色、位置、数量、背景、文字、演示、修改指定人物、删除指定元素、撤销、重做和导出指令");
     return true;
   }
 
@@ -454,9 +454,9 @@ function editRecentPerson(command) {
     return false;
   }
 
-  const element = findRecentPersonElement();
+  const element = findTargetPersonElement(command);
   if (!element) {
-    logCommand("当前没有可修改的人物，请先画一个人物", "warn");
+    logCommand("当前没有找到可修改的人物，请先画一个人物或换个位置描述", "warn");
     return false;
   }
 
@@ -519,22 +519,25 @@ function editRecentPerson(command) {
   renderElementsFromBase();
   const targetText = editTargetLabel(target);
   const colorText = color ? color.name : "";
-  saveSnapshot(`修改最近人物${targetText}`);
-  logCommand(`已将最近人物的${targetText}改为${colorText || "新类型"}`);
+  const scopeText = targetScopeLabel(command);
+  saveSnapshot(`修改${scopeText}人物${targetText}`);
+  logCommand(`已将${scopeText}人物的${targetText}改为${colorText || "新类型"}`);
   return true;
 }
 
-function deleteRecentElement() {
-  const removed = state.elements.pop();
-  if (!removed) {
-    logCommand("当前没有可删除的最近元素", "warn");
+function deleteRecentElement(command = "") {
+  const index = findTargetElementIndex(command);
+  if (index === -1) {
+    logCommand("当前没有找到可删除的元素，请先画图或换个目标描述", "warn");
     return false;
   }
 
+  const [removed] = state.elements.splice(index, 1);
   renderElementsFromBase();
   const label = elementLabel(removed);
-  saveSnapshot(`删除最近${label}`);
-  logCommand(`删除最近一个${label}`);
+  const scopeText = targetScopeLabel(command);
+  saveSnapshot(`删除${scopeText}${label}`);
+  logCommand(`删除${scopeText}${label}`);
   return true;
 }
 
@@ -1176,6 +1179,11 @@ function parseShoeType(command) {
   return "sneakers";
 }
 
+function findTargetPersonElement(command) {
+  const index = findTargetElementIndex(command, (element) => element.type === "shape" && element.shape === "person");
+  return index === -1 ? null : state.elements[index];
+}
+
 function findRecentPersonElement() {
   for (let index = state.elements.length - 1; index >= 0; index -= 1) {
     const element = state.elements[index];
@@ -1184,6 +1192,97 @@ function findRecentPersonElement() {
     }
   }
   return null;
+}
+
+function findTargetElementIndex(command, customMatcher = null) {
+  const matcher = customMatcher || buildElementMatcher(command);
+  const indexes = [];
+  for (let index = 0; index < state.elements.length; index += 1) {
+    if (matcher(state.elements[index])) {
+      indexes.push(index);
+    }
+  }
+  if (!indexes.length) return -1;
+
+  const targetPosition = findTargetPosition(command);
+  if (!targetPosition) {
+    return indexes[indexes.length - 1];
+  }
+
+  return indexes
+    .map((index) => ({
+      index,
+      distance: distanceToTarget(state.elements[index], targetPosition),
+    }))
+    .sort((a, b) => a.distance - b.distance || b.index - a.index)[0].index;
+}
+
+function buildElementMatcher(command) {
+  if (/文字|文本|标题|字/.test(command)) {
+    return (element) => element.type === "text";
+  }
+
+  const shape = findShape(command);
+  if (shape) {
+    return (element) => element.type === "shape" && element.shape === shape;
+  }
+
+  return () => true;
+}
+
+function findTargetPosition(command) {
+  const horizontal = /左上|左下|左边|左侧|左面/.test(command)
+    ? "left"
+    : /右上|右下|右边|右侧|右面/.test(command)
+      ? "right"
+      : /中间|中央|中心|正中/.test(command)
+        ? "center"
+        : null;
+  const vertical = /左上|右上|上方|顶部|上面|上边|上侧/.test(command)
+    ? "top"
+    : /左下|右下|下方|底部|下面|下边|下侧/.test(command)
+      ? "bottom"
+      : /中间|中央|中心|正中/.test(command)
+        ? "middle"
+        : null;
+
+  if (!horizontal && !vertical) return null;
+
+  const xMap = {
+    left: WIDTH * 0.24,
+    center: WIDTH * 0.5,
+    right: WIDTH * 0.76,
+  };
+  const yMap = {
+    top: HEIGHT * 0.24,
+    middle: HEIGHT * 0.5,
+    bottom: HEIGHT * 0.74,
+  };
+
+  return {
+    x: xMap[horizontal || "center"],
+    y: yMap[vertical || "middle"],
+  };
+}
+
+function distanceToTarget(element, targetPosition) {
+  const position = element.options?.position;
+  if (!position) return Number.POSITIVE_INFINITY;
+  return (position.x - targetPosition.x) ** 2 + (position.y - targetPosition.y) ** 2;
+}
+
+function targetScopeLabel(command) {
+  if (/最近|刚才|上一个|最后/.test(command)) return "最近";
+  if (/左上/.test(command)) return "左上方";
+  if (/右上/.test(command)) return "右上方";
+  if (/左下/.test(command)) return "左下方";
+  if (/右下/.test(command)) return "右下方";
+  if (/左边|左侧|左面/.test(command)) return "左边";
+  if (/右边|右侧|右面/.test(command)) return "右边";
+  if (/上方|顶部|上面|上边|上侧/.test(command)) return "上方";
+  if (/下方|底部|下面|下边|下侧/.test(command)) return "下方";
+  if (/中间|中央|中心|正中/.test(command)) return "中间";
+  return "最近";
 }
 
 function findPersonEditTarget(command) {
