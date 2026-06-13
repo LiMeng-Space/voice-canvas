@@ -288,8 +288,13 @@ function hasVisualOptions(command) {
 function executeCommand(command) {
   if (!command) return false;
 
+  if (/播放演示|开始演示|演示模式|演示一下|示范|样例|示例|demo/i.test(command)) {
+    playDemoScene();
+    return true;
+  }
+
   if (/帮助|说明|指令/.test(command)) {
-    logCommand("支持形状、颜色、位置、数量、背景、文字、撤销、重做和导出指令");
+    logCommand("支持形状、颜色、位置、数量、背景、文字、演示、撤销、重做和导出指令");
     return true;
   }
 
@@ -373,6 +378,62 @@ function clearCanvas() {
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
   saveSnapshot("清空画布");
   logCommand("清空画布");
+}
+
+function playDemoScene() {
+  const previousColor = state.color;
+  const previousColorName = state.colorName;
+  const previousMode = state.mode;
+  const previousLineWidth = state.lineWidth;
+
+  const sky = { name: "浅蓝色", value: "#cdeef5" };
+  state.background = sky.value;
+  ctx.fillStyle = sky.value;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  drawShape("sun", demoOptions("黄色", WIDTH * 0.18, HEIGHT * 0.2, 130));
+  drawRepeatedShape("cloud", {
+    ...demoOptions("白色", WIDTH * 0.58, HEIGHT * 0.22, 120),
+    count: 3,
+  });
+  drawRepeatedShape("mountain", {
+    ...demoOptions("绿色", WIDTH * 0.5, HEIGHT * 0.72, 190),
+    count: 3,
+  });
+  drawShape("house", demoOptions("红色", WIDTH * 0.72, HEIGHT * 0.66, 150));
+  drawRepeatedShape("tree", {
+    ...demoOptions("绿色", WIDTH * 0.28, HEIGHT * 0.66, 110),
+    count: 2,
+  });
+  drawRepeatedShape("flower", {
+    ...demoOptions("粉色", WIDTH * 0.45, HEIGHT * 0.78, 70),
+    count: 5,
+  });
+  drawText("Voice Canvas", {
+    ...demoOptions("黑色", WIDTH * 0.5, HEIGHT * 0.46, 150),
+    mode: "fill",
+  });
+
+  state.color = previousColor;
+  state.colorName = previousColorName;
+  state.mode = previousMode;
+  state.lineWidth = previousLineWidth;
+  updateStatePanel();
+  saveSnapshot("语音演示场景");
+  logCommand("播放演示场景：天空、太阳、云、山、房子、树、花和标题");
+}
+
+function demoOptions(colorName, x, y, size) {
+  const color = colors.find((item) => item.name === colorName) || colors[0];
+  return {
+    color,
+    position: { x, y },
+    size,
+    count: 1,
+    mode: "fill",
+    lineWidth: state.lineWidth,
+    direction: "right",
+  };
 }
 
 function exportCanvas() {
