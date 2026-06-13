@@ -47,7 +47,7 @@ const colors = [
   { name: "米色", value: "#f5f2ea", keys: ["米色", "米白"] },
 ];
 
-const countUnits = ["个", "只", "朵", "颗", "棵", "座", "条", "轮"];
+const countUnits = ["个", "只", "朵", "颗", "棵", "座", "条", "轮", "位", "名"];
 const drawIntentPattern = /画|绘制|添加|放|放置|生成|创建|来|画上|加上|补上/;
 const textIntentPattern = /写|写上|文字|文本|标题|输入|加字/;
 
@@ -65,6 +65,7 @@ const shapeAliases = [
   { shape: "house", keys: ["房子", "房屋", "小屋"] },
   { shape: "flower", keys: ["花", "花朵", "小花"] },
   { shape: "mountain", keys: ["山", "山峰", "群山"] },
+  { shape: "person", keys: ["人物", "人", "男孩", "女孩", "男生", "女生", "男人", "女人", "老人", "老头", "老太太", "爷爷", "奶奶", "小孩", "孩子", "自己"] },
 ];
 
 const numberWords = new Map([
@@ -349,9 +350,11 @@ function executeCommand(command) {
   const shape = findShape(command);
   if (shape && (hasDrawIntent(command) || hasVisualOptions(command))) {
     const options = parseOptions(command);
+    const label = shape === "person" ? personLabel(options.person) : shapeLabel(shape);
+    const colorName = shape === "person" ? options.person.clothingColor.name : options.color.name;
     drawRepeatedShape(shape, options);
-    saveSnapshot(`${shapeLabel(shape)} x ${options.count}`);
-    logCommand(`绘制 ${options.count} 个${shapeLabel(shape)}，颜色 ${options.color.name}`);
+    saveSnapshot(`${label} x ${options.count}`);
+    logCommand(`绘制 ${options.count} 个${label}，颜色 ${colorName}`);
     return true;
   }
 
@@ -510,15 +513,19 @@ function setBackground(color) {
 }
 
 function parseOptions(command) {
-  const color = findColor(command) || {
+  const detectedColor = findColor(command);
+  const color = detectedColor || {
     name: state.colorName,
     value: state.color,
   };
+  const defaultPersonColor = detectedColor || colors.find((item) => item.name === "蓝色");
   return {
     color,
     position: findPosition(command),
     size: findSize(command),
     count: findCount(command),
+    person: parsePersonAttributes(command, defaultPersonColor),
+    source: command,
     mode: /描边|空心|轮廓/.test(command)
       ? "stroke"
       : /填充|实心/.test(command)
@@ -628,6 +635,141 @@ function findDirection(command) {
   return "right";
 }
 
+function parsePersonAttributes(command, defaultColor) {
+  const gender = /女孩|女生|女人|女性|奶奶|老太太|女/.test(command)
+    ? "female"
+    : /男孩|男生|男人|男性|爷爷|老头|男/.test(command)
+      ? "male"
+      : "neutral";
+  const age = /老人|老年|爷爷|奶奶|老头|老太太/.test(command)
+    ? "elder"
+    : /小孩|孩子|儿童|男孩|女孩/.test(command)
+      ? "child"
+      : /少年|青少年|学生/.test(command)
+        ? "teen"
+        : "adult";
+  const hair = /光头|秃头/.test(command)
+    ? "bald"
+    : /马尾/.test(command)
+      ? "ponytail"
+      : /卷发/.test(command)
+        ? "curly"
+        : /长发/.test(command)
+          ? "long"
+          : /短发/.test(command)
+            ? "short"
+            : gender === "female"
+              ? "long"
+              : "short";
+  const height = /高个子|很高|高高|高的/.test(command)
+    ? "tall"
+    : /矮个子|很矮|矮小|矮的/.test(command)
+      ? "short"
+      : "normal";
+  const build = /微胖|胖|圆润/.test(command)
+    ? "chubby"
+    : /强壮|健壮|壮/.test(command)
+      ? "strong"
+      : /瘦|苗条/.test(command)
+        ? "slim"
+        : "normal";
+  const skin = /深肤色|皮肤偏深|深色皮肤|黑皮肤|小麦色/.test(command)
+    ? "deep"
+    : /浅肤色|皮肤白|白皮肤|白皙|浅色皮肤/.test(command)
+      ? "light"
+      : "medium";
+  const clothingColor = findClothingColor(command) || defaultColor || colors.find((item) => item.name === "蓝色");
+  const topColor = findColorByTargets(command, ["上衣", "衣服", "T恤", "短袖", "衬衫", "卫衣", "外套", "毛衣"]) || clothingColor;
+  const bottomColor = findColorByTargets(command, ["裤子", "长裤", "短裤", "裙子", "短裙", "长裙", "下装"]) || colors.find((item) => item.name === "灰色");
+  const shoeColor = findColorByTargets(command, ["鞋", "鞋子", "运动鞋", "皮鞋", "靴子", "凉鞋"]) || colors.find((item) => item.name === "黑色");
+  const hatColor = findColorByTargets(command, ["帽子", "帽", "鸭舌帽", "棒球帽", "渔夫帽", "毛线帽", "草帽", "头盔"]) || topColor;
+
+  return {
+    gender,
+    age,
+    hair,
+    height,
+    build,
+    skin,
+    glasses: /眼镜/.test(command) && !/不戴眼镜|没戴眼镜|无眼镜/.test(command),
+    clothingColor,
+    topType: parseTopType(command),
+    topColor,
+    bottomType: parseBottomType(command),
+    bottomColor,
+    shoeType: parseShoeType(command),
+    shoeColor,
+    hat: /帽子|戴帽|帽/.test(command) && !/不戴帽|没戴帽|无帽/.test(command),
+    hatType: parseHatType(command),
+    hatColor,
+  };
+}
+
+function findClothingColor(command) {
+  const color = findColor(command);
+  if (!color) return null;
+  if (/衣服|上衣|衣|裙|外套|T恤|服装/.test(command)) return color;
+  if (/肤色|皮肤/.test(command)) return null;
+  return color;
+}
+
+function findColorByTargets(command, targets) {
+  const matches = [];
+  colors.forEach((color) => {
+    color.keys.forEach((key) => {
+      targets.forEach((target) => {
+        let searchFrom = 0;
+        while (searchFrom < command.length) {
+          const colorIndex = command.indexOf(key, searchFrom);
+          if (colorIndex === -1) break;
+          const targetIndex = command.indexOf(target);
+          if (targetIndex !== -1 && Math.abs(colorIndex - targetIndex) <= 6) {
+            matches.push({ color, distance: Math.abs(colorIndex - targetIndex), length: key.length });
+          }
+          searchFrom = colorIndex + key.length;
+        }
+      });
+    });
+  });
+  matches.sort((a, b) => a.distance - b.distance || b.length - a.length);
+  return matches[0]?.color;
+}
+
+function parseTopType(command) {
+  if (/卫衣/.test(command)) return "hoodie";
+  if (/外套|夹克/.test(command)) return "jacket";
+  if (/衬衫/.test(command)) return "shirt";
+  if (/毛衣/.test(command)) return "sweater";
+  if (/T恤|短袖/.test(command)) return "tshirt";
+  return "top";
+}
+
+function parseBottomType(command) {
+  if (/短裙/.test(command)) return "shortSkirt";
+  if (/长裙/.test(command)) return "longSkirt";
+  if (/裙子|半身裙/.test(command)) return "skirt";
+  if (/短裤/.test(command)) return "shorts";
+  if (/长裤|裤子|牛仔裤|运动裤/.test(command)) return "pants";
+  return "pants";
+}
+
+function parseHatType(command) {
+  if (/头盔|安全帽/.test(command)) return "helmet";
+  if (/渔夫帽/.test(command)) return "bucket";
+  if (/毛线帽|针织帽/.test(command)) return "beanie";
+  if (/草帽|宽檐帽|遮阳帽/.test(command)) return "wideBrim";
+  if (/鸭舌帽|棒球帽/.test(command)) return "baseball";
+  return "baseball";
+}
+
+function parseShoeType(command) {
+  if (/靴子|短靴|长靴/.test(command)) return "boots";
+  if (/凉鞋/.test(command)) return "sandals";
+  if (/皮鞋/.test(command)) return "dress";
+  if (/运动鞋|跑鞋|球鞋/.test(command)) return "sneakers";
+  return "sneakers";
+}
+
 function extractText(command) {
   const cleaned = command
     .replace(/^(写|写上|添加|加上|输入|画|绘制)?(一段|一些|几个)?(文字|文本|标题|字)?/, "")
@@ -686,6 +828,7 @@ function drawShape(shape, options) {
     house: () => drawHouse(x, y, size),
     flower: () => drawFlower(x, y, size),
     mountain: () => drawMountain(x, y, size, options.mode),
+    person: () => drawPerson(x, y, size, options.person),
   };
 
   drawers[shape]?.();
@@ -832,6 +975,343 @@ function drawMountain(x, y, size, mode) {
   paint(mode);
 }
 
+function drawPerson(x, y, size, person) {
+  const skinColors = {
+    light: "#f5d0b5",
+    medium: "#d79b70",
+    deep: "#8b5a3c",
+  };
+  const hairColor = person.age === "elder" ? "#b8b8b8" : "#2f231f";
+  const heightScale = {
+    short: 0.86,
+    normal: 1,
+    tall: 1.18,
+  }[person.height];
+  const buildScale = {
+    slim: 0.78,
+    normal: 1,
+    chubby: 1.28,
+    strong: 1.2,
+  }[person.build];
+  const ageScale = person.age === "child" ? 0.84 : 1;
+  const figureSize = size * 1.18 * ageScale;
+  const totalHeight = figureSize * heightScale;
+  const headRadius = figureSize * 0.18;
+  const headY = y - totalHeight * 0.28;
+  const shoulderY = headY + headRadius * 1.45;
+  const torsoHeight = totalHeight * 0.34;
+  const torsoWidth = figureSize * 0.34 * buildScale;
+  const hipY = shoulderY + torsoHeight;
+  const footY = y + totalHeight * 0.46;
+  const skin = skinColors[person.skin] || skinColors.medium;
+  const topColor = person.topColor?.value || person.clothingColor?.value || "#2f74d0";
+  const bottomColor = person.bottomColor?.value || "#8f9399";
+  const shoeColor = person.shoeColor?.value || "#222326";
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  drawPersonHairBase(x, headY, headRadius, person.hair, hairColor);
+
+  ctx.fillStyle = skin;
+  drawCircle(x, headY, headRadius, "fill");
+
+  drawPersonHairCap(x, headY, headRadius, person.hair, hairColor);
+  if (person.hat) {
+    drawPersonHat(x, headY, headRadius, person.hatType, person.hatColor?.value || topColor);
+  }
+  drawPersonFace(x, headY, headRadius, person.glasses);
+
+  ctx.strokeStyle = skin;
+  ctx.lineWidth = Math.max(4, figureSize * 0.045);
+  ctx.beginPath();
+  ctx.moveTo(x - torsoWidth * 0.45, shoulderY + figureSize * 0.04);
+  ctx.lineTo(x - torsoWidth * 0.78, hipY - figureSize * 0.06);
+  ctx.moveTo(x + torsoWidth * 0.45, shoulderY + figureSize * 0.04);
+  ctx.lineTo(x + torsoWidth * 0.78, hipY - figureSize * 0.06);
+  ctx.stroke();
+
+  drawPersonTop(x, shoulderY, torsoWidth, torsoHeight, figureSize, person.topType, topColor);
+  drawPersonBottom(x, hipY, footY, torsoWidth, figureSize, person.bottomType, bottomColor);
+
+  drawPersonShoes(x, footY, torsoWidth, figureSize, person.shoeType, shoeColor);
+
+  if (person.age === "elder") {
+    ctx.strokeStyle = "#8b5a33";
+    ctx.lineWidth = Math.max(3, figureSize * 0.025);
+    ctx.beginPath();
+    ctx.moveTo(x + torsoWidth * 0.78, hipY - figureSize * 0.08);
+    ctx.lineTo(x + torsoWidth * 0.98, footY);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawPersonTop(x, y, width, height, size, topType, color) {
+  ctx.fillStyle = color;
+  drawRect(x - width * 0.5, y, width, height, "fill");
+
+  if (topType === "tshirt") {
+    drawRect(x - width * 0.8, y + height * 0.08, width * 0.28, height * 0.24, "fill");
+    drawRect(x + width * 0.52, y + height * 0.08, width * 0.28, height * 0.24, "fill");
+  }
+
+  if (topType === "shirt") {
+    ctx.strokeStyle = "#fffdfa";
+    ctx.lineWidth = Math.max(2, size * 0.018);
+    ctx.beginPath();
+    ctx.moveTo(x, y + height * 0.08);
+    ctx.lineTo(x, y + height * 0.92);
+    ctx.moveTo(x - width * 0.22, y + height * 0.08);
+    ctx.lineTo(x, y + height * 0.22);
+    ctx.lineTo(x + width * 0.22, y + height * 0.08);
+    ctx.stroke();
+  }
+
+  if (topType === "hoodie") {
+    ctx.strokeStyle = "#fffdfa";
+    ctx.lineWidth = Math.max(2, size * 0.02);
+    ctx.beginPath();
+    ctx.arc(x, y + height * 0.12, width * 0.26, 0, Math.PI);
+    ctx.moveTo(x - width * 0.12, y + height * 0.3);
+    ctx.lineTo(x - width * 0.18, y + height * 0.56);
+    ctx.moveTo(x + width * 0.12, y + height * 0.3);
+    ctx.lineTo(x + width * 0.18, y + height * 0.56);
+    ctx.stroke();
+  }
+
+  if (topType === "jacket") {
+    ctx.strokeStyle = "#222326";
+    ctx.lineWidth = Math.max(2, size * 0.017);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y + height);
+    ctx.moveTo(x - width * 0.35, y + height * 0.2);
+    ctx.lineTo(x - width * 0.1, y + height * 0.46);
+    ctx.moveTo(x + width * 0.35, y + height * 0.2);
+    ctx.lineTo(x + width * 0.1, y + height * 0.46);
+    ctx.stroke();
+  }
+
+  if (topType === "sweater") {
+    ctx.strokeStyle = "rgba(255,255,255,0.65)";
+    ctx.lineWidth = Math.max(1.5, size * 0.014);
+    for (let i = 1; i <= 3; i += 1) {
+      ctx.beginPath();
+      ctx.moveTo(x - width * 0.42, y + (height * i) / 4);
+      ctx.lineTo(x + width * 0.42, y + (height * i) / 4);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawPersonBottom(x, hipY, footY, width, size, bottomType, color) {
+  ctx.fillStyle = color;
+
+  if (bottomType === "skirt" || bottomType === "shortSkirt" || bottomType === "longSkirt") {
+    const skirtLength = bottomType === "longSkirt" ? size * 0.34 : bottomType === "shortSkirt" ? size * 0.18 : size * 0.26;
+    ctx.beginPath();
+    ctx.moveTo(x - width * 0.42, hipY);
+    ctx.lineTo(x + width * 0.42, hipY);
+    ctx.lineTo(x + width * 0.66, hipY + skirtLength);
+    ctx.lineTo(x - width * 0.66, hipY + skirtLength);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#374151";
+    ctx.lineWidth = Math.max(4, size * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(x - width * 0.2, hipY + skirtLength);
+    ctx.lineTo(x - width * 0.3, footY);
+    ctx.moveTo(x + width * 0.2, hipY + skirtLength);
+    ctx.lineTo(x + width * 0.3, footY);
+    ctx.stroke();
+    return;
+  }
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = bottomType === "shorts" ? Math.max(7, size * 0.07) : Math.max(6, size * 0.06);
+  const legEndY = bottomType === "shorts" ? hipY + size * 0.18 : footY - size * 0.04;
+  ctx.beginPath();
+  ctx.moveTo(x - width * 0.22, hipY);
+  ctx.lineTo(x - width * 0.34, legEndY);
+  ctx.moveTo(x + width * 0.22, hipY);
+  ctx.lineTo(x + width * 0.34, legEndY);
+  ctx.stroke();
+
+  if (bottomType === "shorts") {
+    ctx.strokeStyle = "#374151";
+    ctx.lineWidth = Math.max(4, size * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(x - width * 0.34, legEndY);
+    ctx.lineTo(x - width * 0.34, footY);
+    ctx.moveTo(x + width * 0.34, legEndY);
+    ctx.lineTo(x + width * 0.34, footY);
+    ctx.stroke();
+  }
+}
+
+function drawPersonShoes(x, footY, width, size, shoeType, color) {
+  ctx.fillStyle = color;
+  const shoeWidth = Math.max(10, size * 0.12);
+  const shoeHeight = Math.max(5, size * 0.045);
+
+  if (shoeType === "boots") {
+    drawRect(x - width * 0.45, footY - shoeHeight * 1.6, shoeWidth * 0.82, shoeHeight * 1.6, "fill");
+    drawRect(x + width * 0.2, footY - shoeHeight * 1.6, shoeWidth * 0.82, shoeHeight * 1.6, "fill");
+  }
+
+  if (shoeType === "sandals") {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(2, size * 0.018);
+    ctx.beginPath();
+    ctx.moveTo(x - width * 0.46, footY);
+    ctx.lineTo(x - width * 0.46 + shoeWidth, footY);
+    ctx.moveTo(x - width * 0.42, footY - shoeHeight * 0.5);
+    ctx.lineTo(x - width * 0.36, footY + shoeHeight * 0.25);
+    ctx.moveTo(x + width * 0.18, footY);
+    ctx.lineTo(x + width * 0.18 + shoeWidth, footY);
+    ctx.moveTo(x + width * 0.22, footY - shoeHeight * 0.5);
+    ctx.lineTo(x + width * 0.28, footY + shoeHeight * 0.25);
+    ctx.stroke();
+    return;
+  }
+
+  drawRect(x - width * 0.46, footY - shoeHeight * 0.25, shoeWidth, shoeHeight, "fill");
+  drawRect(x + width * 0.18, footY - shoeHeight * 0.25, shoeWidth, shoeHeight, "fill");
+
+  if (shoeType === "sneakers") {
+    ctx.strokeStyle = "#fffdfa";
+    ctx.lineWidth = Math.max(1.5, size * 0.012);
+    ctx.beginPath();
+    ctx.moveTo(x - width * 0.44, footY);
+    ctx.lineTo(x - width * 0.46 + shoeWidth * 0.88, footY);
+    ctx.moveTo(x + width * 0.2, footY);
+    ctx.lineTo(x + width * 0.18 + shoeWidth * 0.88, footY);
+    ctx.stroke();
+  }
+
+  if (shoeType === "dress") {
+    ctx.fillStyle = "#111827";
+    drawCircle(x - width * 0.46 + shoeWidth * 0.85, footY - shoeHeight * 0.05, shoeHeight * 0.35, "fill");
+    drawCircle(x + width * 0.18 + shoeWidth * 0.85, footY - shoeHeight * 0.05, shoeHeight * 0.35, "fill");
+  }
+}
+
+function drawPersonHat(x, y, radius, hatType, color) {
+  ctx.fillStyle = color;
+  if (hatType === "beanie") {
+    ctx.beginPath();
+    ctx.arc(x, y - radius * 0.72, radius * 0.68, Math.PI, 0);
+    ctx.lineTo(x + radius * 0.62, y - radius * 0.48);
+    ctx.lineTo(x - radius * 0.62, y - radius * 0.48);
+    ctx.closePath();
+    ctx.fill();
+    drawCircle(x, y - radius * 1.42, radius * 0.14, "fill");
+    return;
+  }
+
+  if (hatType === "wideBrim") {
+    drawRect(x - radius * 1.15, y - radius * 0.65, radius * 2.3, radius * 0.16, "fill");
+    ctx.beginPath();
+    ctx.arc(x, y - radius * 0.72, radius * 0.58, Math.PI, 0);
+    ctx.lineTo(x + radius * 0.58, y - radius * 0.55);
+    ctx.lineTo(x - radius * 0.58, y - radius * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    return;
+  }
+
+  if (hatType === "bucket") {
+    ctx.beginPath();
+    ctx.moveTo(x - radius * 0.68, y - radius * 1.1);
+    ctx.lineTo(x + radius * 0.68, y - radius * 1.1);
+    ctx.lineTo(x + radius * 0.88, y - radius * 0.48);
+    ctx.lineTo(x - radius * 0.88, y - radius * 0.48);
+    ctx.closePath();
+    ctx.fill();
+    return;
+  }
+
+  if (hatType === "helmet") {
+    ctx.beginPath();
+    ctx.arc(x, y - radius * 0.62, radius * 0.72, Math.PI, 0);
+    ctx.lineTo(x + radius * 0.72, y - radius * 0.34);
+    ctx.lineTo(x - radius * 0.72, y - radius * 0.34);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.75)";
+    ctx.lineWidth = Math.max(2, radius * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(x, y - radius * 1.3);
+    ctx.lineTo(x, y - radius * 0.35);
+    ctx.stroke();
+    return;
+  }
+
+  ctx.beginPath();
+  ctx.arc(x, y - radius * 0.72, radius * 0.64, Math.PI, 0);
+  ctx.lineTo(x + radius * 0.64, y - radius * 0.6);
+  ctx.lineTo(x - radius * 0.64, y - radius * 0.6);
+  ctx.closePath();
+  ctx.fill();
+  drawRect(x - radius * 0.82, y - radius * 0.62, radius * 1.64, radius * 0.16, "fill");
+  drawRect(x + radius * 0.55, y - radius * 0.62, radius * 0.8, radius * 0.12, "fill");
+}
+
+function drawPersonHairBase(x, y, radius, hair, hairColor) {
+  ctx.fillStyle = hairColor;
+  if (hair === "long") {
+    drawCircle(x - radius * 0.72, y + radius * 0.22, radius * 0.58, "fill");
+    drawCircle(x + radius * 0.72, y + radius * 0.22, radius * 0.58, "fill");
+  }
+  if (hair === "ponytail") {
+    drawCircle(x + radius * 0.98, y + radius * 0.12, radius * 0.42, "fill");
+  }
+  if (hair === "curly") {
+    for (let i = -2; i <= 2; i += 1) {
+      drawCircle(x + i * radius * 0.34, y - radius * 0.62, radius * 0.28, "fill");
+    }
+  }
+}
+
+function drawPersonHairCap(x, y, radius, hair, hairColor) {
+  if (hair === "bald") return;
+  ctx.fillStyle = hairColor;
+  ctx.beginPath();
+  ctx.arc(x, y - radius * 0.12, radius * 0.98, Math.PI, 0);
+  ctx.lineTo(x + radius * 0.82, y - radius * 0.02);
+  ctx.lineTo(x - radius * 0.82, y - radius * 0.02);
+  ctx.closePath();
+  ctx.fill();
+  if (hair === "short") {
+    drawCircle(x - radius * 0.34, y - radius * 0.52, radius * 0.26, "fill");
+    drawCircle(x + radius * 0.24, y - radius * 0.56, radius * 0.24, "fill");
+  }
+}
+
+function drawPersonFace(x, y, radius, glasses) {
+  ctx.fillStyle = "#222326";
+  drawCircle(x - radius * 0.35, y - radius * 0.04, radius * 0.055, "fill");
+  drawCircle(x + radius * 0.35, y - radius * 0.04, radius * 0.055, "fill");
+  ctx.strokeStyle = "#222326";
+  ctx.lineWidth = Math.max(1.8, radius * 0.055);
+  ctx.beginPath();
+  ctx.arc(x, y + radius * 0.2, radius * 0.2, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.stroke();
+
+  if (!glasses) return;
+  ctx.strokeStyle = "#111827";
+  ctx.lineWidth = Math.max(2, radius * 0.07);
+  ctx.beginPath();
+  ctx.arc(x - radius * 0.34, y - radius * 0.04, radius * 0.24, 0, Math.PI * 2);
+  ctx.arc(x + radius * 0.34, y - radius * 0.04, radius * 0.24, 0, Math.PI * 2);
+  ctx.moveTo(x - radius * 0.1, y - radius * 0.04);
+  ctx.lineTo(x + radius * 0.1, y - radius * 0.04);
+  ctx.stroke();
+}
+
 function drawText(text, options) {
   const { x, y } = options.position;
   ctx.save();
@@ -866,8 +1346,34 @@ function shapeLabel(shape) {
     house: "房子",
     flower: "花朵",
     mountain: "山峰",
+    person: "人物",
   };
   return labels[shape] || shape;
+}
+
+function personLabel(person) {
+  const genderText = {
+    male: "男生",
+    female: "女生",
+    neutral: "人物",
+  }[person.gender];
+  const ageText = {
+    child: "小孩",
+    teen: "少年",
+    adult: "",
+    elder: "老人",
+  }[person.age];
+  const hairText = {
+    short: "短发",
+    long: "长发",
+    curly: "卷发",
+    ponytail: "马尾",
+    bald: "光头",
+  }[person.hair];
+  const heightText = person.height === "tall" ? "高个子" : person.height === "short" ? "矮个子" : "";
+  const buildText = person.build === "slim" ? "偏瘦" : person.build === "chubby" ? "微胖" : person.build === "strong" ? "强壮" : "";
+  const glassesText = person.glasses ? "戴眼镜" : "";
+  return [glassesText, heightText, buildText, hairText, ageText || genderText].filter(Boolean).join("");
 }
 
 function clamp(value, min, max) {
