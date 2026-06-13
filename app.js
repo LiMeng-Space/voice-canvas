@@ -296,8 +296,19 @@ function hasVisualOptions(command) {
   );
 }
 
+function isBadmintonSceneCommand(command) {
+  if (/羽毛球|球拍|球网|羽毛球场/.test(command)) return true;
+  if (/(篮球|足球|乒乓|网球|排球)/.test(command)) return false;
+  return /(球场|运动场|体育场|体育馆).*(打球|运动)|打球.*(球场|运动场|体育场|体育馆)/.test(command);
+}
+
 function executeCommand(command) {
   if (!command) return false;
+
+  if (isBadmintonSceneCommand(command)) {
+    playBadmintonScene(command);
+    return true;
+  }
 
   if (/播放演示|开始演示|演示模式|演示一下|示范|样例|示例|demo/i.test(command)) {
     playDemoScene();
@@ -436,6 +447,199 @@ function playDemoScene() {
   updateStatePanel();
   saveSnapshot("语音演示场景");
   logCommand("播放演示场景：天空、太阳、云、山、房子、树、花和标题");
+}
+
+function playBadmintonScene(command) {
+  const previousColor = state.color;
+  const previousColorName = state.colorName;
+  const previousMode = state.mode;
+  const previousLineWidth = state.lineWidth;
+
+  drawBadmintonCourt();
+
+  const playerColor = colors.find((item) => item.name === "蓝色");
+  const opponentColor = colors.find((item) => item.name === "红色");
+  drawShape("person", {
+    ...demoOptions("蓝色", WIDTH * 0.34, HEIGHT * 0.64, 136),
+    person: parsePersonAttributes(buildBadmintonPlayerCommand(command), playerColor),
+  });
+  drawBadmintonRacket(WIDTH * 0.43, HEIGHT * 0.55, 118, 1);
+
+  drawShape("person", {
+    ...demoOptions("红色", WIDTH * 0.68, HEIGHT * 0.39, 104),
+    person: parsePersonAttributes("穿红色T恤黑色短裤白色运动鞋的人", opponentColor),
+  });
+  drawBadmintonRacket(WIDTH * 0.62, HEIGHT * 0.33, 86, -1);
+  drawShuttlecock(WIDTH * 0.52, HEIGHT * 0.38, 70);
+  drawText("羽毛球场景", {
+    ...demoOptions("黑色", WIDTH * 0.5, HEIGHT * 0.1, 110),
+    mode: "fill",
+  });
+
+  state.color = previousColor;
+  state.colorName = previousColorName;
+  state.mode = previousMode;
+  state.lineWidth = previousLineWidth;
+  updateStatePanel();
+  saveSnapshot("羽毛球运动场景");
+  logCommand("生成羽毛球场景：球场、球网、人物、球拍和羽毛球");
+}
+
+function buildBadmintonPlayerCommand(command) {
+  let details = command;
+  if (!/(人物|人|自己|男孩|女孩|男生|女生|男人|女人|老人|老头|老太太|爷爷|奶奶|小孩|孩子)/.test(details)) {
+    details += " 自己";
+  }
+  if (!/(上衣|衣服|T恤|短袖|衬衫|卫衣|外套|毛衣)/.test(details)) {
+    details += " 蓝色T恤";
+  }
+  if (!/(裤子|短裤|长裤|裙子|短裙|长裙|下装)/.test(details)) {
+    details += " 黑色短裤";
+  }
+  if (!/(鞋|鞋子|运动鞋|球鞋|跑鞋|靴子|凉鞋|皮鞋)/.test(details)) {
+    details += " 白色运动鞋";
+  }
+  return details;
+}
+
+function drawBadmintonCourt() {
+  const courtX = WIDTH * 0.12;
+  const courtY = HEIGHT * 0.17;
+  const courtWidth = WIDTH * 0.76;
+  const courtHeight = HEIGHT * 0.68;
+  const netY = courtY + courtHeight * 0.48;
+
+  state.background = "#d7efd8";
+  ctx.fillStyle = state.background;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  ctx.fillStyle = "#53b76d";
+  drawRect(courtX, courtY, courtWidth, courtHeight, "fill");
+  ctx.strokeStyle = "#fffdfa";
+  ctx.lineWidth = 5;
+  drawRect(courtX, courtY, courtWidth, courtHeight, "stroke");
+
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(courtX + courtWidth * 0.18, courtY);
+  ctx.lineTo(courtX + courtWidth * 0.18, courtY + courtHeight);
+  ctx.moveTo(courtX + courtWidth * 0.82, courtY);
+  ctx.lineTo(courtX + courtWidth * 0.82, courtY + courtHeight);
+  ctx.moveTo(courtX, courtY + courtHeight * 0.22);
+  ctx.lineTo(courtX + courtWidth, courtY + courtHeight * 0.22);
+  ctx.moveTo(courtX, courtY + courtHeight * 0.78);
+  ctx.lineTo(courtX + courtWidth, courtY + courtHeight * 0.78);
+  ctx.moveTo(courtX + courtWidth * 0.5, courtY);
+  ctx.lineTo(courtX + courtWidth * 0.5, courtY + courtHeight);
+  ctx.stroke();
+
+  drawBadmintonNet(courtX, netY, courtWidth, courtHeight);
+}
+
+function drawBadmintonNet(courtX, netY, courtWidth, courtHeight) {
+  const postHeight = courtHeight * 0.16;
+  ctx.save();
+  ctx.strokeStyle = "#263238";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(courtX - 10, netY - postHeight * 0.5);
+  ctx.lineTo(courtX - 10, netY + postHeight * 0.5);
+  ctx.moveTo(courtX + courtWidth + 10, netY - postHeight * 0.5);
+  ctx.lineTo(courtX + courtWidth + 10, netY + postHeight * 0.5);
+  ctx.moveTo(courtX, netY);
+  ctx.lineTo(courtX + courtWidth, netY);
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(255,255,255,0.72)";
+  ctx.lineWidth = 1.5;
+  for (let i = 1; i < 12; i += 1) {
+    const x = courtX + (courtWidth * i) / 12;
+    ctx.beginPath();
+    ctx.moveTo(x, netY - postHeight * 0.42);
+    ctx.lineTo(x, netY + postHeight * 0.42);
+    ctx.stroke();
+  }
+  for (let i = -2; i <= 2; i += 1) {
+    const y = netY + (postHeight * i) / 5;
+    ctx.beginPath();
+    ctx.moveTo(courtX, y);
+    ctx.lineTo(courtX + courtWidth, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBadmintonRacket(x, y, size, flip) {
+  const headX = x + flip * size * 0.24;
+  const headY = y - size * 0.22;
+  const handleStartX = x - flip * size * 0.24;
+  const handleStartY = y + size * 0.3;
+  const handleEndX = x + flip * size * 0.08;
+  const handleEndY = y - size * 0.02;
+  const radius = size * 0.17;
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#4b5563";
+  ctx.lineWidth = Math.max(4, size * 0.045);
+  ctx.beginPath();
+  ctx.moveTo(handleStartX, handleStartY);
+  ctx.lineTo(handleEndX, handleEndY);
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(255,255,255,0.72)";
+  ctx.lineWidth = Math.max(3, size * 0.028);
+  ctx.beginPath();
+  ctx.arc(headX, headY, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(75,85,99,0.72)";
+  ctx.lineWidth = Math.max(1.5, size * 0.012);
+  for (let i = -2; i <= 2; i += 1) {
+    ctx.beginPath();
+    ctx.moveTo(headX + i * radius * 0.34, headY - radius * 0.78);
+    ctx.lineTo(headX + i * radius * 0.34, headY + radius * 0.78);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(headX - radius * 0.78, headY + i * radius * 0.34);
+    ctx.lineTo(headX + radius * 0.78, headY + i * radius * 0.34);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawShuttlecock(x, y, size) {
+  const corkX = x + size * 0.22;
+  const corkY = y + size * 0.16;
+
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.fillStyle = "#fffdfa";
+  ctx.strokeStyle = "#4b5563";
+  ctx.lineWidth = Math.max(2, size * 0.028);
+  ctx.beginPath();
+  ctx.moveTo(corkX - size * 0.08, corkY - size * 0.04);
+  ctx.lineTo(x - size * 0.38, y - size * 0.3);
+  ctx.lineTo(x - size * 0.12, y - size * 0.43);
+  ctx.lineTo(corkX + size * 0.04, corkY - size * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x - size * 0.34, y - size * 0.28);
+  ctx.lineTo(corkX - size * 0.03, corkY - size * 0.08);
+  ctx.moveTo(x - size * 0.22, y - size * 0.36);
+  ctx.lineTo(corkX - size * 0.02, corkY - size * 0.08);
+  ctx.moveTo(x - size * 0.12, y - size * 0.42);
+  ctx.lineTo(corkX + size * 0.02, corkY - size * 0.08);
+  ctx.stroke();
+
+  ctx.fillStyle = "#f3c13a";
+  drawCircle(corkX, corkY, size * 0.08, "fill");
+  ctx.restore();
 }
 
 function demoOptions(colorName, x, y, size) {
