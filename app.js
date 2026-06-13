@@ -27,6 +27,10 @@ const state = {
   history: [],
   redoStack: [],
   recognition: null,
+  elements: [],
+  baseImage: null,
+  baseBackground: "#fffdfa",
+  rendering: false,
 };
 
 const colors = [
@@ -85,6 +89,7 @@ const numberWords = new Map([
 function initCanvas() {
   ctx.fillStyle = state.background;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  resetElementBase();
   saveSnapshot("初始化画布", false);
   updateStatePanel();
 }
@@ -93,6 +98,10 @@ function saveSnapshot(label, clearRedo = true) {
   state.history.push({
     label,
     image: ctx.getImageData(0, 0, WIDTH, HEIGHT),
+    elements: cloneDrawingData(state.elements),
+    baseImage: state.baseImage,
+    baseBackground: state.baseBackground,
+    background: state.background,
   });
   if (state.history.length > 60) {
     state.history.shift();
@@ -105,6 +114,49 @@ function saveSnapshot(label, clearRedo = true) {
 
 function restoreSnapshot(snapshot) {
   ctx.putImageData(snapshot.image, 0, 0);
+  state.elements = cloneDrawingData(snapshot.elements || []);
+  state.baseImage = snapshot.baseImage || null;
+  state.baseBackground = snapshot.baseBackground || snapshot.background || state.background;
+  state.background = snapshot.background || state.baseBackground;
+}
+
+function cloneDrawingData(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function resetElementBase() {
+  state.elements = [];
+  state.baseImage = ctx.getImageData(0, 0, WIDTH, HEIGHT);
+  state.baseBackground = state.background;
+}
+
+function addElement(element) {
+  if (state.rendering) return;
+  state.elements.push(cloneDrawingData(element));
+}
+
+function renderElementsFromBase() {
+  if (state.baseImage) {
+    ctx.putImageData(state.baseImage, 0, 0);
+    state.background = state.baseBackground;
+  } else {
+    ctx.fillStyle = state.background;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  }
+
+  state.rendering = true;
+  try {
+    state.elements.forEach((element) => {
+      if (element.type === "shape") {
+        drawShape(element.shape, element.options);
+      }
+      if (element.type === "text") {
+        drawText(element.text, element.options);
+      }
+    });
+  } finally {
+    state.rendering = false;
+  }
 }
 
 function logCommand(message, type = "ok") {
@@ -302,8 +354,30 @@ function isBadmintonSceneCommand(command) {
   return /(球场|运动场|体育场|体育馆).*(打球|运动)|打球.*(球场|运动场|体育场|体育馆)/.test(command);
 }
 
+function isEditRecentPersonCommand(command) {
+  return (
+    /(修改|改成|改为|换成|换为|变成|调整|改|换)/.test(command) &&
+    /(上衣|衣服|T恤|短袖|衬衫|卫衣|外套|毛衣|裤子|短裤|长裤|裙子|短裙|长裙|下装|鞋|鞋子|运动鞋|球鞋|跑鞋|靴子|凉鞋|皮鞋|帽子|帽)/.test(command)
+  );
+}
+
+function isDeleteRecentElementCommand(command) {
+  return (
+    /(删除|删掉|去掉|移除|擦掉)/.test(command) &&
+    /(最近|刚才|上一个|最后|元素|图形|画的|人物|文字)/.test(command)
+  );
+}
+
 function executeCommand(command) {
   if (!command) return false;
+
+  if (isEditRecentPersonCommand(command)) {
+    return editRecentPerson(command);
+  }
+
+  if (isDeleteRecentElementCommand(command)) {
+    return deleteRecentElement();
+  }
 
   if (isBadmintonSceneCommand(command)) {
     playBadmintonScene(command);
@@ -316,7 +390,7 @@ function executeCommand(command) {
   }
 
   if (/帮助|说明|指令/.test(command)) {
-    logCommand("支持形状、颜色、位置、数量、背景、文字、演示、撤销、重做和导出指令");
+    logCommand("支持形状、颜色、位置、数量、背景、文字、演示、修改最近人物、删除最近元素、撤销、重做和导出指令");
     return true;
   }
 
@@ -373,6 +447,97 @@ function executeCommand(command) {
   return false;
 }
 
+function editRecentPerson(command) {
+  const target = findPersonEditTarget(command);
+  if (!target) {
+    logCommand("请说明要修改人物的上衣、下装、鞋子或帽子", "warn");
+    return false;
+  }
+
+  const element = findRecentPersonElement();
+  if (!element) {
+    logCommand("当前没有可修改的人物，请先画一个人物", "warn");
+    return false;
+  }
+
+  const color = findReplacementColor(command);
+  const person = element.options.person;
+  let changed = false;
+
+  if (target === "top") {
+    if (color) {
+      person.topColor = color;
+      person.clothingColor = color;
+      element.options.color = color;
+      changed = true;
+    }
+    if (hasTopType(command)) {
+      person.topType = parseTopType(command);
+      changed = true;
+    }
+  }
+
+  if (target === "bottom") {
+    if (color) {
+      person.bottomColor = color;
+      changed = true;
+    }
+    if (hasBottomType(command)) {
+      person.bottomType = parseBottomType(command);
+      changed = true;
+    }
+  }
+
+  if (target === "shoe") {
+    if (color) {
+      person.shoeColor = color;
+      changed = true;
+    }
+    if (hasShoeType(command)) {
+      person.shoeType = parseShoeType(command);
+      changed = true;
+    }
+  }
+
+  if (target === "hat") {
+    person.hat = true;
+    if (color) {
+      person.hatColor = color;
+      changed = true;
+    }
+    if (hasHatType(command)) {
+      person.hatType = parseHatType(command);
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    logCommand("请说明要改成什么颜色或类型", "warn");
+    return false;
+  }
+
+  renderElementsFromBase();
+  const targetText = editTargetLabel(target);
+  const colorText = color ? color.name : "";
+  saveSnapshot(`修改最近人物${targetText}`);
+  logCommand(`已将最近人物的${targetText}改为${colorText || "新类型"}`);
+  return true;
+}
+
+function deleteRecentElement() {
+  const removed = state.elements.pop();
+  if (!removed) {
+    logCommand("当前没有可删除的最近元素", "warn");
+    return false;
+  }
+
+  renderElementsFromBase();
+  const label = elementLabel(removed);
+  saveSnapshot(`删除最近${label}`);
+  logCommand(`删除最近一个${label}`);
+  return true;
+}
+
 function undo() {
   if (state.history.length <= 1) {
     logCommand("已经没有可撤销的步骤", "warn");
@@ -402,6 +567,7 @@ function redo() {
 function clearCanvas() {
   ctx.fillStyle = state.background;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  resetElementBase();
   saveSnapshot("清空画布");
   logCommand("清空画布");
 }
@@ -444,6 +610,7 @@ function playDemoScene() {
   state.colorName = previousColorName;
   state.mode = previousMode;
   state.lineWidth = previousLineWidth;
+  resetElementBase();
   updateStatePanel();
   saveSnapshot("语音演示场景");
   logCommand("播放演示场景：天空、太阳、云、山、房子、树、花和标题");
@@ -480,6 +647,7 @@ function playBadmintonScene(command) {
   state.colorName = previousColorName;
   state.mode = previousMode;
   state.lineWidth = previousLineWidth;
+  resetElementBase();
   updateStatePanel();
   saveSnapshot("羽毛球运动场景");
   logCommand("生成羽毛球场景：球场、球网、人物、球拍和羽毛球");
@@ -712,6 +880,7 @@ function setBackground(color) {
 
   ctx.putImageData(image, 0, 0);
   state.background = color.value;
+  resetElementBase();
   saveSnapshot(`背景：${color.name}`);
   logCommand(`背景改为${color.name}`);
 }
@@ -751,6 +920,39 @@ function findColor(command) {
   });
   matches.sort((a, b) => b.length - a.length);
   return matches[0]?.color;
+}
+
+function findColorMentions(command) {
+  const mentions = [];
+  colors.forEach((color) => {
+    color.keys.forEach((key) => {
+      let searchFrom = 0;
+      while (searchFrom < command.length) {
+        const index = command.indexOf(key, searchFrom);
+        if (index === -1) break;
+        mentions.push({ color, index, length: key.length });
+        searchFrom = index + key.length;
+      }
+    });
+  });
+  mentions.sort((a, b) => a.index - b.index || b.length - a.length);
+  return mentions;
+}
+
+function findReplacementColor(command) {
+  const mentions = findColorMentions(command);
+  if (!mentions.length) return null;
+
+  const markers = ["修改为", "改成", "改为", "换成", "换为", "变成", "调整为", "为", "成", "改", "换"];
+  const markerEnd = markers.reduce((latest, marker) => {
+    const index = command.lastIndexOf(marker);
+    return index === -1 ? latest : Math.max(latest, index + marker.length);
+  }, -1);
+
+  const afterMarker = mentions
+    .filter((mention) => mention.index >= markerEnd)
+    .sort((a, b) => a.index - b.index || b.length - a.length);
+  return afterMarker[0]?.color || mentions[mentions.length - 1].color;
 }
 
 function findShape(command) {
@@ -974,6 +1176,50 @@ function parseShoeType(command) {
   return "sneakers";
 }
 
+function findRecentPersonElement() {
+  for (let index = state.elements.length - 1; index >= 0; index -= 1) {
+    const element = state.elements[index];
+    if (element.type === "shape" && element.shape === "person") {
+      return element;
+    }
+  }
+  return null;
+}
+
+function findPersonEditTarget(command) {
+  if (/鞋|鞋子|运动鞋|球鞋|跑鞋|靴子|凉鞋|皮鞋/.test(command)) return "shoe";
+  if (/裤子|短裤|长裤|裙子|短裙|长裙|下装/.test(command)) return "bottom";
+  if (/帽子|帽/.test(command)) return "hat";
+  if (/上衣|衣服|T恤|短袖|衬衫|卫衣|外套|毛衣/.test(command)) return "top";
+  return null;
+}
+
+function hasTopType(command) {
+  return /卫衣|外套|夹克|衬衫|毛衣|T恤|短袖/.test(command);
+}
+
+function hasBottomType(command) {
+  return /短裙|长裙|裙子|半身裙|短裤|长裤|裤子|牛仔裤|运动裤/.test(command);
+}
+
+function hasHatType(command) {
+  return /头盔|安全帽|渔夫帽|毛线帽|针织帽|草帽|宽檐帽|遮阳帽|鸭舌帽|棒球帽/.test(command);
+}
+
+function hasShoeType(command) {
+  return /靴子|短靴|长靴|凉鞋|皮鞋|运动鞋|跑鞋|球鞋/.test(command);
+}
+
+function editTargetLabel(target) {
+  const labels = {
+    top: "上衣",
+    bottom: "下装",
+    shoe: "鞋子",
+    hat: "帽子",
+  };
+  return labels[target] || "属性";
+}
+
 function extractText(command) {
   const cleaned = command
     .replace(/^(写|写上|添加|加上|输入|画|绘制)?(一段|一些|几个)?(文字|文本|标题|字)?/, "")
@@ -1035,7 +1281,10 @@ function drawShape(shape, options) {
     person: () => drawPerson(x, y, size, options.person),
   };
 
-  drawers[shape]?.();
+  if (drawers[shape]) {
+    drawers[shape]();
+    addElement({ type: "shape", shape, options });
+  }
   ctx.restore();
 }
 
@@ -1525,6 +1774,7 @@ function drawText(text, options) {
   ctx.textBaseline = "middle";
   ctx.fillText(text, x, y, Math.min(WIDTH * 0.86, options.size * 5));
   ctx.restore();
+  addElement({ type: "text", text, options });
 }
 
 function paint(mode) {
@@ -1553,6 +1803,16 @@ function shapeLabel(shape) {
     person: "人物",
   };
   return labels[shape] || shape;
+}
+
+function elementLabel(element) {
+  if (element.type === "text") {
+    return `文字「${element.text}」`;
+  }
+  if (element.shape === "person") {
+    return personLabel(element.options.person) || "人物";
+  }
+  return shapeLabel(element.shape);
 }
 
 function personLabel(person) {
