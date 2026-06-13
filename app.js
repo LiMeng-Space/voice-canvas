@@ -43,6 +43,10 @@ const colors = [
   { name: "米色", value: "#f5f2ea", keys: ["米色", "米白"] },
 ];
 
+const countUnits = ["个", "只", "朵", "颗", "棵", "座", "条", "轮"];
+const drawIntentPattern = /画|绘制|添加|放|放置|生成|创建|来|画上|加上|补上/;
+const textIntentPattern = /写|写上|文字|文本|标题|输入|加字/;
+
 const shapeAliases = [
   { shape: "circle", keys: ["圆", "圆形", "圆圈", "圈"] },
   { shape: "square", keys: ["正方形", "方块"] },
@@ -239,7 +243,11 @@ function normalizeText(text) {
   return text
     .trim()
     .replace(/\s+/g, "")
-    .replace(/[，。！？；、]/g, ",")
+    .replace(/坐标?(\d+)[,，](\d+)/g, "坐标$1和$2")
+    .replace(/[，。！？；、,.!?;]/g, ",")
+    .replace(/请你|请给我|帮忙|麻烦|可以|能不能|给我/g, "")
+    .replace(/一下|一下子/g, "")
+    .replace(/先/g, "")
     .replace(/再来/g, "再")
     .replace(/帮我/g, "")
     .replace(/请/g, "");
@@ -247,7 +255,7 @@ function normalizeText(text) {
 
 function splitCommands(text) {
   const roughParts = text
-    .split(/,|然后|接着|随后|再|并且|同时|最后|另外|then|and/gi)
+    .split(/,|然后|接着|随后|之后|接下来|再|并且|同时|最后|另外|还有|then|and/gi)
     .map((part) => part.trim())
     .filter(Boolean);
 
@@ -265,7 +273,16 @@ function splitCommands(text) {
 }
 
 function hasDrawIntent(command) {
-  return /画|绘制|添加|放|来/.test(command);
+  return drawIntentPattern.test(command);
+}
+
+function hasVisualOptions(command) {
+  const unitPattern = countUnits.join("|");
+  return (
+    Boolean(findColor(command)) ||
+    /左|右|上|下|中|顶|底|大|小|描边|填充|空心|实心/.test(command) ||
+    new RegExp(`\\d+(${unitPattern})|[一二两三四五六七八九十]+(${unitPattern})`).test(command)
+  );
 }
 
 function executeCommand(command) {
@@ -294,18 +311,18 @@ function executeCommand(command) {
     return true;
   }
 
-  if (/背景/.test(command)) {
+  if (/背景|底色|画布颜色/.test(command)) {
     const color = findColor(command) || colors.find((item) => item.name === "白色");
     setBackground(color);
     return true;
   }
 
-  if (/画笔|线宽|粗|细|颜色|描边|填充|空心|实心/.test(command) && !findShape(command)) {
+  if (/画笔|笔刷|笔触|线宽|粗|细|颜色|描边|填充|空心|实心/.test(command) && !findShape(command)) {
     updateBrush(command);
     return true;
   }
 
-  if (/写|文字|文本|标题/.test(command)) {
+  if (textIntentPattern.test(command)) {
     const options = parseOptions(command);
     const text = extractText(command);
     drawText(text, options);
@@ -315,7 +332,7 @@ function executeCommand(command) {
   }
 
   const shape = findShape(command);
-  if (shape && hasDrawIntent(command)) {
+  if (shape && (hasDrawIntent(command) || hasVisualOptions(command))) {
     const options = parseOptions(command);
     drawRepeatedShape(shape, options);
     saveSnapshot(`${shapeLabel(shape)} x ${options.count}`);
@@ -465,18 +482,24 @@ function findPosition(command) {
     return { x: clamp(Number(direct[1]), 0, WIDTH), y: clamp(Number(direct[2]), 0, HEIGHT) };
   }
 
-  const horizontal = command.includes("左")
+  const coordinate = command.match(/坐标?(\d+)[,，和](\d+)/);
+  if (coordinate) {
+    return {
+      x: clamp(Number(coordinate[1]), 0, WIDTH),
+      y: clamp(Number(coordinate[2]), 0, HEIGHT),
+    };
+  }
+
+  const horizontal = /左|左侧|左边/.test(command)
     ? "left"
-    : command.includes("右")
+    : /右|右侧|右边/.test(command)
       ? "right"
       : "center";
-  const vertical = command.includes("上")
+  const vertical = /上|顶|顶部|上方/.test(command)
     ? "top"
-    : command.includes("下")
+    : /下|底|底部|下方/.test(command)
       ? "bottom"
-      : command.includes("底")
-        ? "bottom"
-        : "middle";
+      : "middle";
 
   const xMap = {
     left: WIDTH * 0.24,
@@ -489,7 +512,7 @@ function findPosition(command) {
     bottom: HEIGHT * 0.74,
   };
 
-  if (/中间|中央|中心/.test(command)) {
+  if (/中间|中央|中心|正中|画面中央/.test(command)) {
     return { x: WIDTH * 0.5, y: HEIGHT * 0.5 };
   }
 
@@ -511,11 +534,9 @@ function findCount(command) {
   const digitMatch = command.match(/(\d+)(个|只|朵|颗|棵|座|条|轮)?/);
   if (digitMatch) return clamp(Number(digitMatch[1]), 1, 12);
 
-  for (const [word, value] of numberWords.entries()) {
-    if (command.includes(`${word}个`) || command.includes(`${word}只`) || command.includes(`${word}朵`) || command.includes(`${word}颗`) || command.includes(`${word}棵`) || command.includes(`${word}座`) || command.includes(`${word}条`)) {
-      return value;
-    }
-  }
+  const unitPattern = countUnits.join("|");
+  const chineseMatch = command.match(new RegExp(`([一二两三四五六七八九十]+)(${unitPattern})`));
+  if (chineseMatch) return clamp(parseChineseNumber(chineseMatch[1]), 1, 12);
 
   return 1;
 }
@@ -536,10 +557,20 @@ function findDirection(command) {
 
 function extractText(command) {
   const cleaned = command
-    .replace(/^(写|添加|画|绘制)?(一段|一些|几个)?(文字|文本|标题)?/, "")
-    .replace(/在(左上|右上|左下|右下|中间|中央|中心|上方|下方|左边|右边).*/, "")
+    .replace(/^(写|写上|添加|加上|输入|画|绘制)?(一段|一些|几个)?(文字|文本|标题|字)?/, "")
+    .replace(/在(左上角?|右上角?|左下角?|右下角?|中间|中央|中心|正中|画面中央|上方|下方|顶部|底部|左边|右边|左侧|右侧).*/, "")
     .trim();
   return cleaned || "Voice Canvas";
+}
+
+function parseChineseNumber(text) {
+  if (numberWords.has(text)) return numberWords.get(text);
+  if (!text.includes("十")) return numberWords.get(text) || 1;
+
+  const [tensText, onesText] = text.split("十");
+  const tens = tensText ? numberWords.get(tensText) || 1 : 1;
+  const ones = onesText ? numberWords.get(onesText) || 0 : 0;
+  return tens * 10 + ones;
 }
 
 function drawRepeatedShape(shape, options) {
