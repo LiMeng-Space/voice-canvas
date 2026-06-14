@@ -8,9 +8,8 @@
 - 代码仓库：https://github.com/LiMeng-Space/voice-canvas
 - Demo 视频：https://www.bilibili.com/video/BV1TwJA6MEc5/
 - 运行方式：见下方“本地运行”
-- 设计文档：见 `DESIGN_DOC.md`
+- 设计文档：见 `docs/DESIGN_DOC.md`
 
-> 提交截止后请将仓库设为 Public，确保评委可以访问代码仓库和 Demo 视频。
 
 ## 作品定位
 
@@ -118,20 +117,9 @@ http://localhost:5173
 
 ## Demo 视频
 
-请把 demo 视频上传到可访问平台，并把链接填在这里：
-
 ```text
 Demo 视频链接：https://www.bilibili.com/video/BV1TwJA6MEc5/
 ```
-
-视频建议覆盖：
-
-1. 启动应用并允许麦克风权限
-2. 说“播放演示”，展示自动生成完整场景
-3. 说“我喜欢打羽毛球”，展示运动场景模板
-4. 用一句复杂指令连续画背景、太阳、云、山和文字
-5. 展示执行反馈面板、撤销、重做、清空、导出
-6. 说明当前实现的语音容错、复杂指令拆解和场景模板能力
 
 ## 提交指南
 
