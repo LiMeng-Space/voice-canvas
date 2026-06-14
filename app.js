@@ -384,7 +384,7 @@ function executeCommand(command) {
     return true;
   }
 
-  if (/播放演示|开始演示|演示模式|演示一下|示范|样例|示例|demo/i.test(command)) {
+  if (/播放(演示|眼视|演试|掩饰)|开始(演示|眼视|演试|掩饰)|(演示|眼视|演试|掩饰)模式|(演示|眼视|演试|掩饰)一下|示范|样例|示例|demo/i.test(command)) {
     playDemoScene();
     return true;
   }
