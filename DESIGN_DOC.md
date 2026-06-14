@@ -1,5 +1,16 @@
 # Voice Canvas 设计文档
 
+## 最终提交信息
+
+- 作品名称：Voice Canvas - AI 语音绘图工具
+- 代码仓库：https://github.com/LiMeng-Space/voice-canvas
+- Demo 视频：https://www.bilibili.com/video/BV1TwJA6MEc5/
+- 运行方式：使用 Chrome 或 Edge 打开项目，本地执行 `python -m http.server 5173` 后访问 `http://localhost:5173`
+- 技术栈：HTML、CSS、JavaScript、Canvas 2D API、Web Speech API、Web Speech Synthesis API
+- 安全说明：项目无后端服务、无第三方云服务、无 API Key，不包含账号密码或私密凭据
+
+本文档为最终评审版本，说明作品目标、已实现能力、技术架构、持续迭代记录和验收方式。
+
 ## 1. 作品目标
 
 开发一款纯语音控制的绘图工具，用户不使用鼠标或键盘完成绘图创作。作品重点展示语音指令理解、复杂指令拆解、响应延迟控制和错误容忍能力。
@@ -11,7 +22,7 @@
 3. 系统实时展示识别文本。
 4. 系统将复杂语句拆成多个绘图动作。
 5. 每个动作立即渲染到 Canvas。
-6. 用户继续用语音撤销、重做、清空或导出作品。
+6. 用户继续用语音修改、删除、撤销、重做、清空或导出作品。
 
 ## 3. 计划支持的指令能力
 
@@ -68,6 +79,10 @@
   ↓
 Web Speech API
   ↓
+实时识别文本展示
+  ↓
+语音识别修正 applySpeechCorrections / speechCorrectionRules
+  ↓
 文本标准化 normalizeText
   ↓
 复杂指令拆解 splitCommands
@@ -76,10 +91,38 @@ Web Speech API
   ↓
 参数解析 parseOptions
   ↓
-Canvas 绘图 drawShape / drawText
+绘图/编辑/删除分发
+  ├─ 基础图形 drawShape
+  ├─ 人物绘制 drawPerson
+  ├─ 场景模板 playBadmintonScene / playDemoScene
+  ├─ 文字绘制 drawText
+  ├─ 目标查找 findTargetElementIndex
+  ├─ 局部修改 editRecentPerson
+  └─ 元素删除 deleteRecentElement
+  ↓
+元素状态 state.elements / baseImageData
+  ↓
+重新渲染 renderElementsFromBase
+  ↓
+Canvas 画布展示
   ↓
 历史快照 saveSnapshot
 ```
+
+核心文件职责：
+
+- `index.html`：页面结构，包含画布、麦克风按钮、实时识别区、设置面板和执行反馈面板。
+- `styles.css`：页面布局、响应式样式、画布区域和侧栏状态面板样式。
+- `app.js`：项目主代码，包含语音识别、指令纠错、指令拆解、参数解析、Canvas 绘图、人物绘制、场景模板、局部修改、目标删除、历史快照和导出逻辑。
+- `README.md`：评审入口、运行方式、Demo 视频、支持指令、依赖说明和安全说明。
+- `DESIGN_DOC.md`：作品设计、架构、能力边界、迭代记录和验收方式。
+
+元素状态设计：
+
+- 对可复绘元素记录类型、位置、颜色、数量、人物属性等结构化信息。
+- 对背景和基础画布内容保存 `baseImageData`，用于删除或修改元素后重绘画面。
+- 修改或删除元素时，先通过类型、位置或最近元素定位目标，再更新 `state.elements`，最后重新渲染。
+- 每次有效绘图、修改、删除或画布操作后保存历史快照，保证撤销和重做可用。
 
 ## 7. 响应延迟控制
 
@@ -88,7 +131,20 @@ Canvas 绘图 drawShape / drawText
 - 复杂指令拆成同步动作队列，减少等待感。
 - Canvas 使用固定 1280 x 720 坐标系，避免频繁布局计算。
 
-## 8. 测试方式
+## 8. 持续迭代记录
+
+- PR1：添加 Pull Request 模板，规范后续 PR 标题、功能描述、实现思路和测试方式。
+- PR2：补充基础指令容错和测试计划，验证语音绘图的核心流程。
+- PR3：新增“播放演示”能力，用一条语音指令生成完整示例场景。
+- PR4：新增执行反馈面板，展示绘图步数、撤销/重做状态、最近结果和执行日志。
+- PR5：完善 README、提交清单和最终状态文档，保证评审入口清晰。
+- PR6：扩展人物绘制能力，支持性别、年龄段、发型、眼镜、体型、肤色、服装、鞋子和帽子。
+- PR7：新增羽毛球运动场景模板，支持“我喜欢打羽毛球”“画我在球场打球”等口语表达。
+- PR8：支持在已绘制内容基础上修改最近人物属性或删除最近元素。
+- PR9：支持按类型和位置修改/删除目标元素，并扩展语音识别自动修正规则。
+- 最终文档收尾：在 README 中加入 Demo 视频链接，并将设计文档更新为最终评审版本。
+
+## 9. 测试方式
 
 手动测试以下语音指令：
 
