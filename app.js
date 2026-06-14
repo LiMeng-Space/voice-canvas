@@ -86,6 +86,30 @@ const numberWords = new Map([
   ["十", 10],
 ]);
 
+const speechCorrectionRules = [
+  [/眼视|演试|掩饰|演是|演事/g, "演示"],
+  [/带眼镜|带眼睛|戴眼睛/g, "戴眼镜"],
+  [/羽毛求|羽毛秋|羽毛就|羽毛酋/g, "羽毛球"],
+  [/兰色|篮色/g, "蓝色"],
+  [/浅兰|浅篮/g, "浅蓝"],
+  [/绿艹|旅色|率色/g, "绿色"],
+  [/左上脚|左上叫/g, "左上角"],
+  [/右上脚|右上叫/g, "右上角"],
+  [/左下脚|左下叫/g, "左下角"],
+  [/右下脚|右下叫/g, "右下角"],
+  [/座边|坐边|左面/g, "左边"],
+  [/又边|右面/g, "右边"],
+  [/撤消|撤小|扯销/g, "撤销"],
+  [/种做|从做|重作|重新做/g, "重做"],
+  [/清孔|清空格/g, "清空"],
+  [/倒出|到处|导处/g, "导出"],
+  [/修该/g, "修改"],
+  [/改称|改城/g, "改成"],
+  [/原素/g, "元素"],
+  [/上意/g, "上衣"],
+  [/下妆/g, "下装"],
+];
+
 function initCanvas() {
   ctx.fillStyle = state.background;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -303,7 +327,7 @@ function handleTranscript(text) {
 }
 
 function normalizeText(text) {
-  return text
+  const normalized = text
     .trim()
     .replace(/\s+/g, "")
     .replace(/坐标?(\d+)[,，](\d+)/g, "坐标$1和$2")
@@ -314,6 +338,14 @@ function normalizeText(text) {
     .replace(/再来/g, "再")
     .replace(/帮我/g, "")
     .replace(/请/g, "");
+  return applySpeechCorrections(normalized);
+}
+
+function applySpeechCorrections(text) {
+  return speechCorrectionRules.reduce(
+    (current, [pattern, replacement]) => current.replace(pattern, replacement),
+    text,
+  );
 }
 
 function splitCommands(text) {
@@ -384,7 +416,7 @@ function executeCommand(command) {
     return true;
   }
 
-  if (/播放演示|开始演示|演示模式|演示一下|示范|样例|示例|demo/i.test(command)) {
+  if (/播放(演示|眼视|演试|掩饰)|开始(演示|眼视|演试|掩饰)|(演示|眼视|演试|掩饰)模式|(演示|眼视|演试|掩饰)一下|示范|样例|示例|demo/i.test(command)) {
     playDemoScene();
     return true;
   }
