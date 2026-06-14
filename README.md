@@ -8,7 +8,7 @@
 - 代码仓库：https://github.com/LiMeng-Space/voice-canvas
 - Demo 视频：https://www.bilibili.com/video/BV1TwJA6MEc5/
 - 运行方式：见下方“本地运行”
-- 设计文档：见 `docs/DESIGN_DOC.md`
+- 设计文档：见 `DESIGN_DOC.md`
 
 
 ## 作品定位
